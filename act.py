@@ -1,75 +1,80 @@
 import os
 import re
+import sys
 import time
+from collections import Counter, defaultdict
 
-# Carpeta donde están los archivos HTML
-carpeta_html = "./Files 2"
-
-# Archivos de salida
-log_file = "act3.txt"
-archivo_global = "palabras.txt"
-palabra_a_buscar = "corel".lower()  # palabra que quieras buscar
-
-def remover_etiquetas_html(nombre_archivo):
-    ruta = os.path.join(carpeta_html, nombre_archivo)
-    # Abrir con encoding latin-1 para evitar errores de codificación
-    with open(ruta, "r", encoding="latin-1") as f:
+def remover_etiquetas_html(ruta_archivo):
+    """Elimina etiquetas HTML y devuelve el texto limpio"""
+    with open(ruta_archivo, "r", encoding="latin-1") as f:
         contenido = f.read()
-    # Eliminar todas las etiquetas HTML
-    contenido_limpio = re.sub(r"<[^>]+>", " ", contenido)
-    return contenido_limpio
+    return re.sub(r"<[^>]+>", " ", contenido)
 
 def extraer_palabras(texto):
-    # Solo letras, minúsculas, sin números ni símbolos
-    palabras = re.findall(r"\b[a-zA-Z]+\b", texto)
-    return set([p.lower() for p in palabras])
+    """Extrae palabras (solo letras) y las convierte a minúsculas"""
+    return [p.lower() for p in re.findall(r"\b[a-zA-Z]+\b", texto)]
 
 def main():
-    todas_las_palabras = set()
-    archivos_por_palabra = {}  # palabra -> lista de archivos
+    if len(sys.argv) != 3:
+        print("Uso: python3 act6.py <input-directory> <output-directory>")
+        sys.exit(1)
+
+    carpeta_html = sys.argv[1]
+    carpeta_salida = sys.argv[2]
+    os.makedirs(carpeta_salida, exist_ok=True)
+
+    log_file = os.path.join(carpeta_salida, "a6_matricula.txt")
+    diccionario_file = os.path.join(carpeta_salida, "diccionario.txt")
+
+    palabras_globales = Counter()
+    archivos_por_palabra = defaultdict(set)
 
     with open(log_file, "w", encoding="utf-8") as log:
-        log.write("Medición de tiempos - Procesamiento global de palabras únicas (solo letras)\n")
-        log.write("----------------------------------------------------------------\n\n")
-
+        log.write("Medición de tiempos - Actividad 6\n")
+        log.write("------------------------------------------------\n\n")
         tiempo_inicio_total = time.time()
 
-        for archivo in os.listdir(carpeta_html):
-            if archivo.endswith(".html"):
-                inicio = time.time()
-                texto_limpio = remover_etiquetas_html(archivo)
-                palabras = extraer_palabras(texto_limpio)
-                fin = time.time()
-                tiempo_archivo = fin - inicio
+        archivos_html = [f for f in os.listdir(carpeta_html) if f.endswith(".html")]
+        if not archivos_html:
+            log.write("No se encontraron archivos HTML en la carpeta de entrada.\n")
+            return
 
-                todas_las_palabras.update(palabras)
-                log.write(f"{archivo}: {tiempo_archivo:.6f} segundos\n")
+        # Procesar cada archivo
+        for archivo in archivos_html:
+            ruta = os.path.join(carpeta_html, archivo)
+            inicio = time.time()
 
-                # Guardar en qué archivo aparece cada palabra
-                for p in palabras:
-                    if p not in archivos_por_palabra:
-                        archivos_por_palabra[p] = []
-                    archivos_por_palabra[p].append(archivo)
+            texto_limpio = remover_etiquetas_html(ruta)
+            palabras = extraer_palabras(texto_limpio)
 
-        lista_ordenada = sorted(todas_las_palabras)
+            # Contar palabras del archivo y actualizar global
+            contador = Counter(palabras)
+            for palabra in contador:
+                palabras_globales[palabra] += contador[palabra]
+                archivos_por_palabra[palabra].add(archivo)
 
-        # Guardar palabras únicas en archivo global
-        with open(archivo_global, "w", encoding="utf-8") as f:
-            for palabra in lista_ordenada:
-                f.write(palabra + "\n")
+            # Guardar tokens individuales por archivo
+            salida_archivo = os.path.join(carpeta_salida, archivo.replace(".html", ".txt"))
+            with open(salida_archivo, "w", encoding="utf-8") as f_out:
+                for palabra in palabras:
+                    f_out.write(palabra + "\n")
 
-        tiempo_fin_total = time.time()
-        tiempo_total = tiempo_fin_total - tiempo_inicio_total
-        log.write("\n----------------------------------------------------------------\n")
-        log.write(f"Tiempo total en procesar todos los archivos: {tiempo_total:.6f} segundos\n")
+            fin = time.time()
+            log.write(f"{archivo}: {fin - inicio:.6f} segundos\n")
 
-    # Buscar palabra en los archivos
-    if palabra_a_buscar in archivos_por_palabra:
-        print(f"✔ La palabra '{palabra_a_buscar}' aparece en los siguientes archivos:")
-        for archivo in archivos_por_palabra[palabra_a_buscar]:
-            print(f"  - {archivo}")
-    else:
-        print(f"✘ La palabra '{palabra_a_buscar}' no aparece en ningún archivo.")
+        # Crear diccionario con tres columnas: palabra, repeticiones, # archivos
+        inicio = time.time()
+        with open(diccionario_file, "w", encoding="utf-8") as f:
+            f.write("Token;Repeticiones;# de archivos\n")
+            for palabra, frecuencia in sorted(palabras_globales.items()):
+                num_archivos = len(archivos_por_palabra[palabra])
+                f.write(f"{palabra};{frecuencia};{num_archivos}\n")
+        fin = time.time()
+        log.write(f"\nCreación del diccionario: {fin - inicio:.6f} segundos\n")
+
+        tiempo_total = time.time() - tiempo_inicio_total
+        log.write("\n------------------------------------------------\n")
+        log.write(f"Tiempo total: {tiempo_total:.6f} segundos\n")
 
 if __name__ == "__main__":
     main()
