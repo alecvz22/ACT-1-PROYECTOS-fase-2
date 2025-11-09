@@ -1,0 +1,2 @@
+LOG DE EJECUCIÓN - FASE 3: WEIGHT TOKENS
+Tiempo total del proceso: 0.0002 segundos

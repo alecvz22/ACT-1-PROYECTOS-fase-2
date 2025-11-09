@@ -1,80 +1,111 @@
 import os
 import re
-import sys
 import time
-from collections import Counter, defaultdict
+import subprocess
+import matplotlib.pyplot as plt
 
-def remover_etiquetas_html(ruta_archivo):
-    """Elimina etiquetas HTML y devuelve el texto limpio"""
-    with open(ruta_archivo, "r", encoding="latin-1") as f:
-        contenido = f.read()
-    return re.sub(r"<[^>]+>", " ", contenido)
+# -------------------------------
+# Comando simulado: tokenize
+# -------------------------------
+def comando_tokenize(input_dir, output_dir):
+    """Simula el comando 'tokenize input-dir output-dir'"""
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-def extraer_palabras(texto):
-    """Extrae palabras (solo letras) y las convierte a minúsculas"""
-    return [p.lower() for p in re.findall(r"\b[a-zA-Z]+\b", texto)]
+    for filename in os.listdir(input_dir):
+        if filename.endswith(".txt"):
+            with open(os.path.join(input_dir, filename), "r", encoding="utf-8") as f:
+                texto = f.read().lower()
+            tokens = re.findall(r"\b\w+\b", texto)
+            with open(os.path.join(output_dir, f"tok_{filename}"), "w", encoding="utf-8") as f:
+                f.write(" ".join(tokens))
 
+# -------------------------------
+# Comando simulado: index
+# -------------------------------
+def comando_index(input_dir, output_dir):
+    """Simula el comando 'index input-dir output-dir'"""
+    indice = {}
+
+    for filename in os.listdir(input_dir):
+        if filename.startswith("tok_") and filename.endswith(".txt"):
+            with open(os.path.join(input_dir, filename), "r", encoding="utf-8") as f:
+                tokens = f.read().split()
+            for token in tokens:
+                if token not in indice:
+                    indice[token] = set()
+                indice[token].add(filename)
+
+    # Guardar índice invertido
+    with open(os.path.join(output_dir, "indice.txt"), "w", encoding="utf-8") as f:
+        for token, archivos in sorted(indice.items()):
+            f.write(f"{token}: {', '.join(sorted(archivos))}\n")
+
+# -------------------------------
+# Ejecutar comandos como llamadas DOS/Unix simuladas
+# -------------------------------
+def ejecutar_comando(nombre, input_dir, output_dir):
+    """Ejecuta un comando simulado (tokenize o index)"""
+    if nombre == "tokenize":
+        comando_tokenize(input_dir, output_dir)
+    elif nombre == "index":
+        comando_index(input_dir, output_dir)
+    else:
+        print(f"⚠️ Comando desconocido: {nombre}")
+
+# -------------------------------
+# Mide tiempo de tokenización + indexación
+# -------------------------------
+def medir_tiempo(input_dir, output_dir, n):
+    """Ejecuta las llamadas 'tokenize' e 'index' y mide su tiempo"""
+    # Crear carpeta temporal con n archivos
+    temp_dir = "temp_docs"
+    os.makedirs(temp_dir, exist_ok=True)
+
+    for archivo in os.listdir(temp_dir):
+        os.remove(os.path.join(temp_dir, archivo))
+
+    for i, nombre in enumerate(sorted(os.listdir(input_dir))):
+        if nombre.endswith(".txt") and i < n:
+            with open(os.path.join(input_dir, nombre), "r", encoding="utf-8") as src:
+                with open(os.path.join(temp_dir, nombre), "w", encoding="utf-8") as dst:
+                    dst.write(src.read())
+
+    # Tokenizar + Indexar
+    inicio = time.time()
+    ejecutar_comando("tokenize", temp_dir, output_dir)
+    ejecutar_comando("index", output_dir, output_dir)
+    fin = time.time()
+
+    return fin - inicio
+
+# -------------------------------
+# Programa principal
+# -------------------------------
 def main():
-    if len(sys.argv) != 3:
-        print("Uso: python3 act6.py <input-directory> <output-directory>")
-        sys.exit(1)
+    input_dir = "entrada"   # Carpeta con documentos originales
+    output_dir = "salida"   # Carpeta de salida
 
-    carpeta_html = sys.argv[1]
-    carpeta_salida = sys.argv[2]
-    os.makedirs(carpeta_salida, exist_ok=True)
+    if not os.path.exists(input_dir):
+        print(f"⚠️ No se encontró la carpeta '{input_dir}'")
+        return
 
-    log_file = os.path.join(carpeta_salida, "a6_matricula.txt")
-    diccionario_file = os.path.join(carpeta_salida, "diccionario.txt")
+    documentos = [10, 20, 30, 40, 50]
+    tiempos = []
 
-    palabras_globales = Counter()
-    archivos_por_palabra = defaultdict(set)
+    for n in documentos:
+        print(f"\n🔹 Procesando {n} documentos...")
+        t = medir_tiempo(input_dir, output_dir, n)
+        tiempos.append(t)
+        print(f"⏱️ Tiempo total ({n} docs): {t:.4f} segundos")
 
-    with open(log_file, "w", encoding="utf-8") as log:
-        log.write("Medición de tiempos - Actividad 6\n")
-        log.write("------------------------------------------------\n\n")
-        tiempo_inicio_total = time.time()
-
-        archivos_html = [f for f in os.listdir(carpeta_html) if f.endswith(".html")]
-        if not archivos_html:
-            log.write("No se encontraron archivos HTML en la carpeta de entrada.\n")
-            return
-
-        # Procesar cada archivo
-        for archivo in archivos_html:
-            ruta = os.path.join(carpeta_html, archivo)
-            inicio = time.time()
-
-            texto_limpio = remover_etiquetas_html(ruta)
-            palabras = extraer_palabras(texto_limpio)
-
-            # Contar palabras del archivo y actualizar global
-            contador = Counter(palabras)
-            for palabra in contador:
-                palabras_globales[palabra] += contador[palabra]
-                archivos_por_palabra[palabra].add(archivo)
-
-            # Guardar tokens individuales por archivo
-            salida_archivo = os.path.join(carpeta_salida, archivo.replace(".html", ".txt"))
-            with open(salida_archivo, "w", encoding="utf-8") as f_out:
-                for palabra in palabras:
-                    f_out.write(palabra + "\n")
-
-            fin = time.time()
-            log.write(f"{archivo}: {fin - inicio:.6f} segundos\n")
-
-        # Crear diccionario con tres columnas: palabra, repeticiones, # archivos
-        inicio = time.time()
-        with open(diccionario_file, "w", encoding="utf-8") as f:
-            f.write("Token;Repeticiones;# de archivos\n")
-            for palabra, frecuencia in sorted(palabras_globales.items()):
-                num_archivos = len(archivos_por_palabra[palabra])
-                f.write(f"{palabra};{frecuencia};{num_archivos}\n")
-        fin = time.time()
-        log.write(f"\nCreación del diccionario: {fin - inicio:.6f} segundos\n")
-
-        tiempo_total = time.time() - tiempo_inicio_total
-        log.write("\n------------------------------------------------\n")
-        log.write(f"Tiempo total: {tiempo_total:.6f} segundos\n")
+    # Graficar resultados
+    plt.plot(documentos, tiempos, marker="o")
+    plt.title("Tiempo de tokenización + indexación")
+    plt.xlabel("Número de documentos")
+    plt.ylabel("Tiempo (segundos)")
+    plt.grid(True)
+    plt.show()
 
 if __name__ == "__main__":
     main()

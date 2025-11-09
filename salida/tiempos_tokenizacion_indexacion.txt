@@ -1,0 +1,6 @@
+Número de documentos;Tiempo total (segundos)
+10;0.000044
+20;0.000015
+30;0.000012
+40;0.000010
+50;0.000009
